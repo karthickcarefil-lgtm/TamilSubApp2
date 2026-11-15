@@ -1,0 +1,32 @@
+package com.karthick.tamilsubtitleai
+
+import android.graphics.Bitmap
+import android.media.Image
+
+object ImageUtils {
+
+    fun imageToBitmap(image: Image): Bitmap {
+        val plane = image.planes[0]
+        val buffer = plane.buffer
+        val pixelStride = plane.pixelStride
+        val rowStride = plane.rowStride
+        val rowPadding = rowStride - pixelStride * image.width
+        val wide = Bitmap.createBitmap(
+            image.width + rowPadding / pixelStride,
+            image.height,
+            Bitmap.Config.ARGB_8888
+        )
+        wide.copyPixelsFromBuffer(buffer)
+        val result = Bitmap.createBitmap(wide, 0, 0, image.width, image.height)
+        if (result != wide) wide.recycle()
+        return result
+    }
+
+    // Subtitles are normally in the lower part of the screen.
+    // Only the bottom 45% is scanned, so the Tamil box at the top is never read again.
+    fun cropBottom(bitmap: Bitmap): Bitmap {
+        val startY = (bitmap.height * 0.55f).toInt()
+        val newHeight = bitmap.height - startY
+        return Bitmap.createBitmap(bitmap, 0, startY, bitmap.width, newHeight)
+    }
+}
