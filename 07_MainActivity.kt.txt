@@ -1,0 +1,110 @@
+package com.karthick.tamilsubtitleai
+
+import android.app.Activity
+import android.content.Intent
+import android.media.projection.MediaProjectionManager
+import android.net.Uri
+import android.os.Build
+import android.os.Bundle
+import android.provider.Settings
+import android.widget.Button
+import android.widget.LinearLayout
+import android.widget.TextView
+import android.widget.Toast
+import androidx.appcompat.app.AppCompatActivity
+
+class MainActivity : AppCompatActivity() {
+    private val captureRequest = 4101
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+
+        if (Build.VERSION.SDK_INT >= 33) {
+            requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 1)
+        }
+
+        val layout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(40, 55, 40, 35)
+            setBackgroundColor(0xFF101827.toInt())
+        }
+        val title = TextView(this).apply {
+            text = "TAMIL SUBTITLE AI"
+            textSize = 27f
+            setTextColor(0xFFFFFFFF.toInt())
+        }
+        val info = TextView(this).apply {
+            text = "Live English-to-Tamil subtitle overlay\n\n" +
+                "1. Allow display over other apps.\n" +
+                "2. Start capture and approve Android's screen-sharing prompt.\n" +
+                "3. Open an OTT app and enable its English subtitles.\n" +
+                "4. Tamil translation appears in a floating box at the top of the screen."
+            textSize = 16f
+            setTextColor(0xFFE5E7EB.toInt())
+            setPadding(0, 24, 0, 24)
+        }
+        val permission = Button(this).apply {
+            text = "1. Allow floating subtitle"
+            setOnClickListener {
+                if (!Settings.canDrawOverlays(this@MainActivity)) {
+                    startActivity(
+                        Intent(
+                            Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                            Uri.parse("package:$packageName")
+                        )
+                    )
+                } else {
+                    Toast.makeText(
+                        this@MainActivity,
+                        "Overlay permission already allowed",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+            }
+        }
+        val start = Button(this).apply {
+            text = "2. START LIVE TRANSLATION"
+            setOnClickListener { requestCapture() }
+        }
+        val stop = Button(this).apply {
+            text = "STOP TRANSLATION"
+            setOnClickListener {
+                stopService(Intent(this@MainActivity, SubtitleCaptureService::class.java))
+            }
+        }
+        layout.addView(title)
+        layout.addView(info)
+        layout.addView(permission)
+        layout.addView(start)
+        layout.addView(stop)
+        setContentView(layout)
+    }
+
+    private fun requestCapture() {
+        if (!Settings.canDrawOverlays(this)) {
+            Toast.makeText(this, "First allow floating subtitle permission", Toast.LENGTH_LONG).show()
+            startActivity(
+                Intent(
+                    Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                    Uri.parse("package:$packageName")
+                )
+            )
+            return
+        }
+        val manager = getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+        startActivityForResult(manager.createScreenCaptureIntent(), captureRequest)
+    }
+
+    @Deprecated("Activity result API kept simple for starter project")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == captureRequest && resultCode == Activity.RESULT_OK && data != null) {
+            val serviceIntent = Intent(this, SubtitleCaptureService::class.java).apply {
+                putExtra("resultCode", resultCode)
+                putExtra("projectionData", data)
+            }
+            startForegroundService(serviceIntent)
+            Toast.makeText(this, "Live subtitle scanner started", Toast.LENGTH_SHORT).show()
+        }
+    }
+}
